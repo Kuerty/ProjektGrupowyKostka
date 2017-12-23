@@ -1,0 +1,234 @@
+#include "dialog.h"
+#include "ui_dialog.h"
+#include <QSerialPort>
+#include <QSerialPortInfo>
+#include <string>
+#include <QDebug>
+#include <QtWidgets>
+#include <windows.h>
+#include "wtypes.h"
+#include <iostream>
+
+Dialog::Dialog(QWidget *parent) :
+    QDialog(parent),
+    ui(new Ui::Dialog)
+{
+    ui->setupUi(this);
+
+    udpsocket = new QUdpSocket(this);
+    arduino = new QSerialPort(this);
+    arduino_port_name = "";
+    arduino_is_available = false;
+    serialBuffer = "";
+    QString PORTNAME = "COM3";
+
+    Resolution(horizontal, vertical);
+
+
+    /*
+    qDebug() << "Number of avablive ports: " << QSerialPortInfo::availablePorts().length();
+    foreach (const QSerialPortInfo &serialPortInfo, QSerialPortInfo::availablePorts()){
+        qDebug() << "Has vendor ID: " << serialPortInfo.hasVendorIdentifier();
+        if (serialPortInfo.hasVendorIdentifier()){
+            qDebug() << "vendor ID: " << serialPortInfo.vendorIdentifier();
+        }
+        qDebug() << "Has product ID: " << serialPortInfo.hasProductIdentifier();
+        if (serialPortInfo.hasProductIdentifier()){
+            qDebug() << "Produt ID :" << serialPortInfo.productIdentifier();
+        }
+
+    }
+    */
+
+    foreach (const QSerialPortInfo &serialPortInfo, QSerialPortInfo::availablePorts()) {        //check if arduino exist
+        if (serialPortInfo.hasVendorIdentifier() && serialPortInfo.hasProductIdentifier()){     //in oppened ports
+            if(serialPortInfo.vendorIdentifier() == arduino_pro_mini_vendor_id){
+                if (serialPortInfo.productIdentifier() == arduino_pro_mini_product_id){
+                    arduino_port_name = serialPortInfo.portName();
+                    arduino_is_available = true;
+                }
+            }
+        }
+    }
+
+    if (true){
+        // open and configure serialport
+        //arduino->setPortName(arduino_port_name);
+        arduino->setPortName(PORTNAME);
+        arduino->open(QSerialPort::ReadWrite);
+        arduino->setBaudRate(QSerialPort::Baud115200);
+        arduino->setDataBits(QSerialPort::Data8);
+        arduino->setParity(QSerialPort::NoParity);
+        arduino->setStopBits(QSerialPort::OneStop);
+        arduino->setFlowControl(QSerialPort::NoFlowControl);
+        QObject::connect(arduino, SIGNAL(readyRead()), this, SLOT(readSerial()));
+    }
+    else{
+        // give error message
+        QMessageBox::warning(this, "Port error", "Couldn't find the Arduino");
+    }
+}
+
+Dialog::~Dialog()
+{
+    if(arduino->isOpen()){
+        arduino->close();
+    }
+    delete ui;
+}
+
+
+
+void Dialog::readSerial(){
+    QByteArray ba;
+    QString data;
+    QStringList data_split;
+
+//    qDebug()<< data;
+/*
+    if(data.contains("p") && data.contains("k"))
+    {
+        //int c = data.count("p");
+        data.remove("<");
+        data.remove(">");
+
+        int ts = data.indexOf("p");
+        int te = data.indexOf("k");
+
+        data.remove(0,ts+1);
+        data.remove(te-1, data.length());
+        data.remove("p");
+        data.remove("k");
+        if (data.length() > 7){
+//      if (data.length() > 29){
+            data.remove("\r");
+            qDebug()<<"dane od p do k: "<<data;
+
+            data_split = data.split(";");
+            pitch = data_split[0].toDouble();
+            roll = data_split[1].toDouble();
+
+
+            accel_x = data_split[0].toDouble();
+            accel_y = data_split[1].toDouble();
+            accel_z = data_split[2].toDouble();
+            gyro_x = data_split[3].toDouble();
+            gyro_y = data_split[4].toDouble();
+            gyro_z = data_split[5].toDouble();
+
+            Dialog::updateLCD(accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z);
+            QString message2Scratch = trUtf8("sensor-update Signal1 %1 Signal2 %2 Signal3 %3 Signal4 %4 Signal5 %5 Signal6 %6")
+                    .arg(accel_x).arg(accel_y).arg(accel_z).arg(gyro_x).arg(gyro_y).arg(gyro_z);
+            QString message2Scratch2 = trUtf8 ("sensor-update Signal1 %1 Signal2 %2").arg(pitch).arg(roll);
+//          send2Scratch(message2Scratch, "127.0.0.1");
+            send2Scratch(message2Scratch2, "127.0.0.1");
+
+        }
+    }
+*/
+
+
+   //qDebug() << serialBuffer;
+/*
+    serialData = arduino->readAll();
+    serialBuffer += QString::fromStdString(serialData.toStdString());
+    qDebug() << serialBuffer;
+*/
+
+
+
+    while (arduino->canReadLine()){
+       ba = arduino->readLine();
+       data =ba;
+       qDebug() << data;
+
+       data_split = data.split(";");
+       pitch = data_split[0].toDouble();        //-50:50
+       roll = data_split[1].toDouble();         //-40:40
+       compass = data_split[2].toDouble();
+/*
+       accel_x = data_split[2].toDouble();
+       accel_y = data_split[3].toDouble();
+       accel_z = data_split[4].toDouble();
+       gyro_x = data_split[5].toDouble();
+       gyro_y = data_split[6].toDouble();
+       gyro_z = data_split[7].toDouble();
+*/
+       //updateLCD (accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z);
+       //qDebug () << data_split;
+       //qDebug () << "pitch : " << pitch << " roll : " << roll;
+       //QString message2Scratch2 = trUtf8 ("sensor-update Signal1 %1 Signal2 %2").arg(pitch).arg(roll);
+       //send2Scratch(message2Scratch2, "127.0.0.1");
+       int przycisk;
+       przycisk = data_split[3].toInt();
+       if (przycisk = 0)
+       Control_Cursor_by_gyro(pitch,roll);
+
+    }
+
+}
+
+void Dialog::updateLCD(const double x_accel_reading, const double y_accel_reading, const double z_accel_reading, const double x_gyro_reading, const double y_gyro_reading, const double z_gyro_reading){
+    ui -> accel_x_number -> display(x_accel_reading);
+    ui -> accel_y_number -> display(y_accel_reading);
+    ui -> accel_z_number -> display(z_accel_reading);
+
+    ui -> gyro_x_number -> display(x_gyro_reading);
+    ui -> gyro_y_number -> display(y_gyro_reading);
+    ui -> gyro_z_number -> display(z_gyro_reading);
+
+}
+
+void Dialog::send2Scratch(QString data, QString IP_ADD)
+{
+    QByteArray ByteData = data.toLocal8Bit();
+
+    int n = ByteData.length();
+    QByteArray BArray;
+    BArray.clear();
+
+    BArray.append(char((n >> 24) & 0xFF));
+    BArray.append(char((n >> 16) & 0xFF));
+    BArray.append(char((n >> 8) & 0xFF));
+    BArray.append(char(n & 0xFF));
+
+    BArray.append(ByteData);
+
+    udpsocket->writeDatagram(ByteData, QHostAddress(IP_ADD), 42001);
+}
+
+void Dialog::Control_Cursor_by_gyro(double x, double y){
+   int cursor_x,cursor_y;
+   if (x >=100)
+       x=100;
+   if (x <= -100)
+       x = -100;
+   if (y>=80)
+       y=80;
+   if (y<= -80)
+       y=-80;
+   cursor_x = (int) ((horizontal/2)+(horizontal*x)/100);
+   cursor_y = (int) ((vertical/2)-(horizontal*y)/80);
+   SetCursorPos(cursor_x, cursor_y);
+//   qDebug() << cursor_x << "  " << cursor_y;
+
+}
+
+void Dialog::Resolution(int& horizontal, int& vertical)
+{
+   RECT desktop;
+   // Get a handle to the desktop window
+   const HWND hDesktop = GetDesktopWindow();
+   // Get the size of screen to the variable desktop
+   GetWindowRect(hDesktop, &desktop);
+   // The top left corner will have coordinates (0,0)
+   // and the bottom right corner will have coordinates
+   // (horizontal, vertical)
+   horizontal = desktop.right;
+   vertical = desktop.bottom;
+}
+
+
+
+
+
